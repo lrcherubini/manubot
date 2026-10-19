@@ -2,24 +2,21 @@ name: Deploy GitHub Pages
 
 on:
   push:
-    branches: [main, ccr-c7817632-e8himv]
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  # Monta e valida o site em todo PR; publica só a partir do main
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - name: Montar site
@@ -27,9 +24,28 @@ jobs:
           mkdir _site
           cp index.html sw.js manifest.webmanifest .nojekyll *.png *.svg _site/
           cp -r fonts _site/
-      - uses: actions/configure-pages@v5
+      - name: Validar arquivos do cache offline
+        run: |
+          missing=0
+          for f in $(grep -oE "^  '[^']+'," sw.js | tr -d "', "); do
+            [ "$f" = "./" ] && continue
+            [ -f "_site/$f" ] || { echo "::error::sw.js referencia arquivo inexistente: $f"; missing=1; }
+          done
+          exit $missing
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
