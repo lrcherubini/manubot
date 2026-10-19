@@ -1,7 +1,7 @@
 // Service worker: pré-carrega todos os arquivos do jogo para jogar offline.
 // Altere VERSION a cada deploy para que os clientes recebam a nova versão.
-const VERSION = 'v2';
-const CACHE = `vao-livre-${VERSION}`;
+const VERSION = 'v3';
+const CACHE = `manubot-${VERSION}`;
 const ASSETS = [
   './',
   'index.html',
@@ -26,7 +26,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k.startsWith('vao-livre-') && k !== CACHE).map(k => caches.delete(k)));
+    await Promise.all(keys.filter(k => (k.startsWith('manubot-') || k.startsWith('vao-livre-')) && k !== CACHE).map(k => caches.delete(k)));
     await self.clients.claim();
   })());
 });
