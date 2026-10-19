@@ -12,7 +12,7 @@ Robô de manutenção numa fábrica em pane. Plataforma de precisão com setores
 - Teclado: ← → / A D mover · Espaço/↑ pular · R reinicia · N novo setor · M som. Toque: metade esquerda arrasta para mover, direita pula.
 
 ## Publicação
-O workflow `.github/workflows/pages.yml` publica o site a cada push em `main`.
+O workflow `.github/workflows/pages.yml` monta e valida o site em todo PR e publica a cada push em `main`.
 Uma única vez: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
 ## Offline
