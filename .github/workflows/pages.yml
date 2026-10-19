@@ -1,4 +1,6 @@
-name: Deploy GitHub Pages
+name: "Pages: build e deploy"
+# Na lista do Actions: PR aparece como "Validação" (sem publicar), main como "Deploy"
+run-name: "${{ github.event_name == 'pull_request' && format('Validação · PR #{0} · {1}', github.event.pull_request.number, github.event.pull_request.title) || (github.event_name == 'workflow_dispatch' && 'Deploy manual' || format('Deploy · {0}', github.event.head_commit.message)) }}"
 
 on:
   push:
@@ -16,6 +18,7 @@ concurrency:
 jobs:
   # Monta e valida o site em todo PR; publica só a partir do main
   build:
+    name: Validar site
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +40,7 @@ jobs:
           path: _site
 
   deploy:
+    name: Publicar no Pages
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
