@@ -25,7 +25,6 @@
   --panel:rgba(9,22,28,.92);
   --f-disp:"Chakra Petch","Trebuchet MS",system-ui,sans-serif;
   --f-num:"JetBrains Mono",ui-monospace,Menlo,monospace;
-  --b:64px;
 }
 [hidden]{display:none!important}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);overflow:hidden;overscroll-behavior:none}
@@ -54,20 +53,25 @@ body{font-family:var(--f-disp);-webkit-user-select:none;user-select:none;-webkit
 button:focus-visible{outline:2px solid var(--exit);outline-offset:2px}
 #stage{position:relative;min-height:0}
 #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
-#hint{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);max-width:min(560px,70%);text-align:center;
+#hint{position:absolute;z-index:5;left:50%;bottom:18px;transform:translateX(-50%);max-width:min(560px,70%);text-align:center;
   font:500 13px/1.45 var(--f-disp);color:var(--ink);background:var(--panel);padding:10px 14px;border-radius:10px;pointer-events:none;transition:opacity .25s}
 #hint small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 #hint.off{opacity:0}
-.ctl{position:fixed;z-index:4;display:none;touch-action:none}
-.touch .ctl{display:flex}
+/* Zonas de toque: metade esquerda = joystick relativo, metade direita = pulo */
+.ctl{position:absolute;top:0;bottom:0;z-index:4;display:none;touch-action:none;overflow:hidden}
+.touch .ctl{display:block}
 .touch .kbd{display:none}
-#pad{left:calc(env(safe-area-inset-left,0px) + 14px);bottom:calc(env(safe-area-inset-bottom,0px) + 14px);gap:10px}
-#pad span,#jump{box-sizing:border-box;border:1.5px solid rgba(238,240,232,.24);background:rgba(238,240,232,.07);display:grid;place-items:center;color:rgba(238,240,232,.8)}
-#pad span{width:var(--b);height:var(--b);border-radius:16px}
-#pad span.on,#jump.on{background:rgba(238,240,232,.24);border-color:rgba(238,240,232,.5)}
-#pad svg,#jump svg{width:42%;height:42%}
-#jump{right:calc(env(safe-area-inset-right,0px) + 14px);bottom:calc(env(safe-area-inset-bottom,0px) + 14px);
-  width:calc(var(--b)*1.3);height:calc(var(--b)*1.3);border-radius:50%}
+.tch{display:none}
+.touch .tch{display:inline}
+#zl{left:0;width:50%}
+#zr{right:0;width:50%}
+#stick{position:absolute;width:96px;height:96px;margin:-48px 0 0 -48px;border-radius:50%;box-sizing:border-box;
+  border:1.5px solid rgba(238,240,232,.22);background:rgba(238,240,232,.05);pointer-events:none}
+#knob{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;
+  background:rgba(238,240,232,.18);border:1.5px solid rgba(238,240,232,.4);box-sizing:border-box}
+#stick.l #knob,#stick.r #knob{background:rgba(255,138,76,.35);border-color:rgba(255,138,76,.7)}
+#tap{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;box-sizing:border-box;
+  border:1.5px solid rgba(126,224,195,.6);background:rgba(126,224,195,.12);pointer-events:none}
 #win{position:fixed;inset:0;z-index:6;display:grid;place-items:center;background:rgba(6,14,18,.55)}
 #win .card{background:var(--panel);border:1px solid var(--tile);border-radius:14px;padding:20px 22px;min-width:240px;display:grid;gap:12px;text-align:center}
 #win h2{margin:0;font:700 22px/1.1 var(--f-disp);letter-spacing:.06em;text-transform:uppercase;color:var(--exit);text-wrap:balance}
@@ -113,15 +117,11 @@ button:focus-visible{outline:2px solid var(--exit);outline-offset:2px}
   </header>
   <div id="stage">
     <canvas id="cv"></canvas>
+    <div class="ctl" id="zl" aria-hidden="true"><div id="stick" hidden><div id="knob"></div></div></div>
+    <div class="ctl" id="zr" aria-hidden="true"><div id="tap" hidden></div></div>
     <div id="hint"></div>
   </div>
 </div>
-
-<div class="ctl" id="pad" aria-hidden="true">
-  <span id="pl"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 4 6 12l10 8z"/></svg></span>
-  <span id="pr"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m8 4 10 8-10 8z"/></svg></span>
-</div>
-<div class="ctl" id="jump" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4 21 16H3z"/></svg></div>
 
 <div id="win" hidden>
   <div class="card">
@@ -457,17 +457,28 @@ addEventListener('keydown',e=>{
   e.preventDefault();
 });
 addEventListener('keyup',e=>{ if(KL.includes(e.code)) keys.l=false; else if(KR.includes(e.code)) keys.r=false; else if(KJ.includes(e.code)) keys.j=false; });
-addEventListener('blur',()=>{ keys.l=keys.r=keys.j=false; tL=tR=tJ=false; padPtrs.clear(); jumpPtrs.clear(); paintCtl(); });
+addEventListener('blur',()=>{ keys.l=keys.r=keys.j=false; resetCtl(); });
 addEventListener('contextmenu',e=>e.preventDefault());
 
-const pad=$('pad'), jumpEl=$('jump'), padPtrs=new Map(), jumpPtrs=new Set();
-function padUpdate(){ const rc=pad.getBoundingClientRect(), mid=rc.left+rc.width/2; let l=false,r=false; for(const x of padPtrs.values()){ if(x<mid) l=true; else r=true; } tL=l; tR=r; paintCtl(); }
-function paintCtl(){ $('pl').classList.toggle('on',tL); $('pr').classList.toggle('on',tR); jumpEl.classList.toggle('on',tJ); }
-pad.addEventListener('pointerdown',e=>{ e.preventDefault(); try{pad.setPointerCapture(e.pointerId);}catch(_){} padPtrs.set(e.pointerId,e.clientX); padUpdate(); });
-pad.addEventListener('pointermove',e=>{ if(padPtrs.has(e.pointerId)){ padPtrs.set(e.pointerId,e.clientX); padUpdate(); } });
-for(const ev of ['pointerup','pointercancel','lostpointercapture']) pad.addEventListener(ev,e=>{ if(padPtrs.delete(e.pointerId)) padUpdate(); });
-jumpEl.addEventListener('pointerdown',e=>{ e.preventDefault(); try{jumpEl.setPointerCapture(e.pointerId);}catch(_){} if(!jumpPtrs.size) jLatch=true; jumpPtrs.add(e.pointerId); tJ=true; paintCtl(); });
-for(const ev of ['pointerup','pointercancel','lostpointercapture']) jumpEl.addEventListener(ev,e=>{ if(jumpPtrs.delete(e.pointerId)){ tJ=jumpPtrs.size>0; paintCtl(); } });
+const zl=$('zl'), zr=$('zr'), stick=$('stick'), knob=$('knob'), tap=$('tap'), jumpPtrs=new Set();
+const DEAD=12, REACH=40; let mv=null; // mv: {id,ox,oy} — ponteiro que controla o movimento
+function zxy(el,e){ const rc=el.getBoundingClientRect(); return [e.clientX-rc.left,e.clientY-rc.top]; }
+function stickMove(e){
+  let [x,y]=zxy(zl,e), dx=x-mv.ox;
+  // Arrastar além do alcance puxa o centro junto, para inverter a direção rapidamente
+  if(dx>REACH) mv.ox=x-REACH; else if(dx<-REACH) mv.ox=x+REACH;
+  dx=x-mv.ox; tL=dx<-DEAD; tR=dx>DEAD;
+  stick.style.left=mv.ox+'px'; stick.style.top=mv.oy+'px'; knob.style.transform=`translateX(${dx}px)`;
+  paintCtl();
+}
+function paintCtl(){ stick.hidden=!mv; stick.classList.toggle('l',tL); stick.classList.toggle('r',tR); tap.hidden=!tJ; }
+function resetCtl(){ mv=null; tL=tR=tJ=false; jumpPtrs.clear(); paintCtl(); }
+zl.addEventListener('pointerdown',e=>{ e.preventDefault(); try{zl.setPointerCapture(e.pointerId);}catch(_){} const [x,y]=zxy(zl,e); mv={id:e.pointerId,ox:x,oy:y}; stickMove(e); });
+zl.addEventListener('pointermove',e=>{ if(mv&&mv.id===e.pointerId) stickMove(e); });
+for(const ev of ['pointerup','pointercancel','lostpointercapture']) zl.addEventListener(ev,e=>{ if(mv&&mv.id===e.pointerId){ mv=null; tL=tR=false; paintCtl(); } });
+zr.addEventListener('pointerdown',e=>{ e.preventDefault(); try{zr.setPointerCapture(e.pointerId);}catch(_){} if(!jumpPtrs.size) jLatch=true; jumpPtrs.add(e.pointerId); tJ=true;
+  const [x,y]=zxy(zr,e); tap.style.left=x+'px'; tap.style.top=y+'px'; paintCtl(); });
+for(const ev of ['pointerup','pointercancel','lostpointercapture']) zr.addEventListener(ev,e=>{ if(jumpPtrs.delete(e.pointerId)){ tJ=jumpPtrs.size>0; paintCtl(); } });
 addEventListener('pointerdown',e=>{ if(e.pointerType==='touch') setTouch(true); },{capture:true});
 function setTouch(on){ document.documentElement.classList.toggle('touch',on); layout(); }
 
@@ -496,7 +507,7 @@ function updateHud(){
 function showHint(){
   const h=$('hint');
   h.innerHTML=firstHint
-    ? 'Ative o interruptor, a porta abre, chegue à saída.<small>Segure o pulo para ir mais alto · pule contra a parede para escalar · quedas longas matam<span class="kbd"> · ← → mover · Espaço pular · R reinicia · N novo</span></small>'
+    ? 'Ative o interruptor, a porta abre, chegue à saída.<small>Segure o pulo para ir mais alto · pule contra a parede para escalar · quedas longas matam<span class="tch"><br>Esquerda: arraste para mover · Direita: toque para pular</span><span class="kbd"> · ← → mover · Espaço pular · R reinicia · N novo</span></small>'
     : 'Mova ou pule para começar';
   h.classList.remove('off');
 }
@@ -509,9 +520,6 @@ function layout(){
   cw=Math.round(st.width*dpr); ch=Math.round(st.height*dpr); cv.width=cw; cv.height=ch;
   const pad2=8, cell=Math.max(8,Math.min((st.width-pad2*2)/COLS,(st.height-pad2*2)/ROWS));
   sc=cell/T; ox=Math.round((st.width-COLS*cell)/2); oy=Math.round((st.height-ROWS*cell)/2);
-  const side=(st.width-COLS*cell)/2;
-  const b=Math.max(52,Math.min(78,side/2-12, st.height*0.2));
-  document.documentElement.style.setProperty('--b',b+'px');
   const coarse=document.documentElement.classList.contains('touch');
   $('rot').hidden=!(coarse&&innerHeight>innerWidth);
   if(L) renderStatic();

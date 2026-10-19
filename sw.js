@@ -1,6 +1,6 @@
 // Service worker: pré-carrega todos os arquivos do jogo para jogar offline.
 // Altere VERSION a cada deploy para que os clientes recebam a nova versão.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `vao-livre-${VERSION}`;
 const ASSETS = [
   './',
